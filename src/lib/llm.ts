@@ -11,7 +11,7 @@ type LlmConfig = {
 };
 
 const AI_SDK_TIMEOUT_MS = 18_000;
-const CHAT_COMPLETIONS_TIMEOUT_MS = 12_000;
+const CHAT_COMPLETIONS_TIMEOUT_MS = 45_000;
 
 export function getLlmProviderInfo() {
   return {
@@ -169,21 +169,21 @@ export async function generateRuleWithLlm(structure: FileStructure, localRule: P
   const prompt = buildRulePrompt(compactStructure, localRule);
 
   try {
-    const result = await generateObject({
-      model: customOpenAI(config.model),
-      schema: parseRuleSchema,
-      prompt,
-      maxRetries: 0,
-      timeout: { totalMs: AI_SDK_TIMEOUT_MS },
-    });
-
-    return result.object;
-  } catch (sdkError) {
+    return await generateRuleWithChatCompletions(prompt, config);
+  } catch (chatError) {
     try {
-      return await generateRuleWithChatCompletions(prompt, config);
-    } catch (chatError) {
+      const result = await generateObject({
+        model: customOpenAI(config.model),
+        schema: parseRuleSchema,
+        prompt,
+        maxRetries: 0,
+        timeout: { totalMs: AI_SDK_TIMEOUT_MS },
+      });
+
+      return result.object;
+    } catch (sdkError) {
       throw new Error(
-        `AI SDK 调用失败：${errorMessage(sdkError)}；Chat Completions 兜底失败：${errorMessage(chatError)}`,
+        `Chat Completions 流式调用失败：${errorMessage(chatError)}；AI SDK 兜底失败：${errorMessage(sdkError)}`,
       );
     }
   }
@@ -230,7 +230,7 @@ function getLlmConfig(): LlmConfig {
 async function generateRuleWithChatCompletions(prompt: string, config: LlmConfig): Promise<ParseRule> {
   const body = {
     model: config.model,
-    stream: false,
+    stream: true,
     messages: [
       {
         role: "system",

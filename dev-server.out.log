@@ -1,0 +1,35 @@
+
+> web@0.1.0 dev
+> next dev -p 3000
+
+▲ Next.js 16.2.7 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.10.129.157:3000
+- Environments: .env
+✓ Ready in 2.8s
+
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 2.7s (next.js: 492ms, application-code: 2.3s)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 485ms (next.js: 8ms, application-code: 476ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 648ms (next.js: 6ms, application-code: 643ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 3.4s (next.js: 4ms, application-code: 3.4s)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 257ms (next.js: 4ms, application-code: 253ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 465ms (next.js: 3ms, application-code: 462ms)
+prisma:query SELECT 1
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 489ms (next.js: 5ms, application-code: 484ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 511ms (next.js: 1544µs, application-code: 510ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 547ms (next.js: 3ms, application-code: 544ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 356ms (next.js: 5ms, application-code: 352ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 253ms (next.js: 2ms, application-code: 251ms)
+prisma:query SELECT "public"."ImportedOrder"."id", "public"."ImportedOrder"."externalCode" FROM "public"."ImportedOrder" WHERE "public"."ImportedOrder"."externalCode" IS NOT NULL ORDER BY "public"."ImportedOrder"."id" ASC OFFSET $1
+ POST /api/parse-file 200 in 460ms (next.js: 3ms, application-code: 457ms)

@@ -66,9 +66,10 @@
       "mode": "matrix",
       "sheetMode": "first",
       "matrix": {
-        "headerRow": 1,
-        "dataStartRow": 2,
-        "quantityColumnStart": 8,
+        "headerRow": 0,
+        "dataStartRow": 1,
+        "quantityColumnStart": 13,
+        "quantityColumnEnd": 17,
         "skuMappings": {
           "skuCode": { "kind": "column", "fallbackHeaders": ["外部商品编码", "SKU条码", "物品编码", "商品编码"] },
           "skuName": { "kind": "column", "fallbackHeaders": ["SKU名称", "物品名称", "商品名称"] },
@@ -110,8 +111,8 @@
       "mode": "table",
       "sheetMode": "all",
       "table": {
-        "headerRow": 2,
-        "dataStartRow": 3,
+        "headerRow": 3,
+        "dataStartRow": 4,
         "stopWhenFirstCellMatches": "^(合计|总计|小计)",
         "fieldMappings": {
           "externalCode": { "kind": "sheetName" },
@@ -122,9 +123,9 @@
         },
         "contextMappings": {
           "receiverShop": { "kind": "sheetName" },
-          "receiverName": { "kind": "label", "label": "收货人|联系人", "offsetCols": 1, "searchFromRow": 5 },
-          "receiverPhone": { "kind": "label", "label": "电话|联系电话", "offsetCols": 1, "searchFromRow": 5 },
-          "receiverAddress": { "kind": "label", "label": "地址|收货地址", "offsetCols": 1, "searchFromRow": 5 }
+          "receiverName": { "kind": "label", "label": "收货人|联系人", "offsetCols": 1, "searchFromRow": 13 },
+          "receiverPhone": { "kind": "label", "label": "电话|联系电话", "offsetCols": 1, "searchFromRow": 13 },
+          "receiverAddress": { "kind": "label", "label": "地址|收货地址", "offsetCols": 1, "searchFromRow": 13 }
         }
       },
       "notes": [

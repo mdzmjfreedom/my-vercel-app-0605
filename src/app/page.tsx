@@ -62,11 +62,19 @@ export default function Home() {
   const progressTimerRef = useRef<number | null>(null);
 
   const fileKind = file ? getFileKind(file.name) : null;
-  const compatibleRules = useMemo(
-    () => rules.filter((rule) => !fileKind || rule.fileType === fileKind),
+  const visibleRules = useMemo(
+    () =>
+      [...rules].sort((first, second) => {
+        const firstMatches = !fileKind || first.fileType === fileKind;
+        const secondMatches = !fileKind || second.fileType === fileKind;
+        if (firstMatches === secondMatches) {
+          return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+        }
+        return firstMatches ? -1 : 1;
+      }),
     [fileKind, rules],
   );
-  const selectedRule = compatibleRules.find((rule) => rule.id === selectedRuleId);
+  const selectedRule = rules.find((rule) => rule.id === selectedRuleId);
   const activeRule = draftRule ?? selectedRule?.config ?? null;
 
   useEffect(() => {
@@ -222,6 +230,13 @@ export default function Home() {
     const rule = draftRule ? syncRuleFromText() : activeRule;
     if (!rule) {
       setStatus({ type: "error", text: "请先选择规则，或生成并确认一条新规则。" });
+      return;
+    }
+    if (fileKind && rule.fileType !== fileKind) {
+      setStatus({
+        type: "error",
+        text: `当前文件是 ${fileKind.toUpperCase()}，所选规则适用于 ${rule.fileType.toUpperCase()}。请切换为同类型文件，或为当前文件新建规则。`,
+      });
       return;
     }
 
@@ -415,29 +430,41 @@ export default function Home() {
           <div className="rule-list">
             {loadingRules ? (
               <div className="empty-inline"><Loader2 className="spin" size={18} /> 规则加载中</div>
-            ) : compatibleRules.length ? (
-              compatibleRules.map((rule) => (
-                <button
-                  key={rule.id}
-                  className={`rule-row ${selectedRuleId === rule.id && !draftRule ? "active" : ""}`}
-                  onClick={() => {
-                    setSelectedRuleId(rule.id);
-                    setDraftRule(null);
-                    setRuleText(JSON.stringify(rule.config, null, 2));
-                    setStatus({ type: "info", text: `已选择规则：${rule.ruleName}` });
-                  }}
-                >
-                  <span>
-                    <strong>{rule.ruleName}</strong>
-                    <small>{rule.fileType.toUpperCase()} · {new Date(rule.updatedAt).toLocaleString()}</small>
-                  </span>
-                  <CheckCircle2 size={18} />
-                </button>
-              ))
+            ) : visibleRules.length ? (
+              visibleRules.map((rule) => {
+                const matchesCurrentFile = !fileKind || rule.fileType === fileKind;
+
+                return (
+                  <button
+                    key={rule.id}
+                    className={`rule-row ${selectedRuleId === rule.id && !draftRule ? "active" : ""} ${matchesCurrentFile ? "" : "mismatch"}`}
+                    onClick={() => {
+                      setSelectedRuleId(rule.id);
+                      setDraftRule(null);
+                      setRuleText(JSON.stringify(rule.config, null, 2));
+                      setStatus({
+                        type: matchesCurrentFile ? "info" : "error",
+                        text: matchesCurrentFile
+                          ? `已选择规则：${rule.ruleName}`
+                          : `已打开规则：${rule.ruleName}。该规则适用于 ${rule.fileType.toUpperCase()}，当前 ${fileKind?.toUpperCase()} 文件不能直接使用。`,
+                      });
+                    }}
+                  >
+                    <span>
+                      <strong>{rule.ruleName}</strong>
+                      <small>
+                        {rule.fileType.toUpperCase()} · {new Date(rule.updatedAt).toLocaleString()} ·{" "}
+                        {matchesCurrentFile ? "当前可用" : "需切换文件"}
+                      </small>
+                    </span>
+                    <CheckCircle2 size={18} />
+                  </button>
+                );
+              })
             ) : (
               <div className="empty-inline">
                 <ClipboardList size={18} />
-                <span>{fileKind ? `暂无 ${fileKind.toUpperCase()} 规则，请生成新规则。` : "上传文件后显示兼容规则。"}</span>
+                <span>暂无已保存规则，请上传样例并生成新规则。</span>
               </div>
             )}
           </div>

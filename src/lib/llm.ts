@@ -10,6 +10,9 @@ type LlmConfig = {
   model: string;
 };
 
+const AI_SDK_TIMEOUT_MS = 18_000;
+const CHAT_COMPLETIONS_TIMEOUT_MS = 12_000;
+
 export function getLlmProviderInfo() {
   return {
     baseURL: process.env.OPENAI_BASE_URL?.trim() ?? "",
@@ -170,6 +173,8 @@ export async function generateRuleWithLlm(structure: FileStructure, localRule: P
       model: customOpenAI(config.model),
       schema: parseRuleSchema,
       prompt,
+      maxRetries: 0,
+      timeout: { totalMs: AI_SDK_TIMEOUT_MS },
     });
 
     return result.object;
@@ -244,7 +249,7 @@ async function generateRuleWithChatCompletions(prompt: string, config: LlmConfig
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(CHAT_COMPLETIONS_TIMEOUT_MS),
   });
 
   const text = await response.text();

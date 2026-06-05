@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -57,7 +57,9 @@ export default function Home() {
   const [loadingRules, setLoadingRules] = useState(true);
   const [working, setWorking] = useState<"generate" | "parse" | "save" | null>(null);
   const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
   const [status, setStatus] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
+  const progressTimerRef = useRef<number | null>(null);
 
   const fileKind = file ? getFileKind(file.name) : null;
   const compatibleRules = useMemo(
@@ -69,6 +71,10 @@ export default function Home() {
 
   useEffect(() => {
     void loadRules();
+  }, []);
+
+  useEffect(() => {
+    return () => clearProgressTimer();
   }, []);
 
   async function loadRules() {
@@ -138,13 +144,16 @@ export default function Home() {
       return;
     }
     setWorking("generate");
-    setProgress(12);
+    setProgress(8);
+    setProgressMessage("正在准备上传样例文件...");
     try {
       const form = new FormData();
       form.append("file", file);
-      tickProgress(35);
+      startGenerateProgressLoop();
       const res = await fetch("/api/generate-rule", { method: "POST", body: form });
-      tickProgress(80);
+      clearProgressTimer();
+      setProgress(88);
+      setProgressMessage("已收到服务端响应，正在整理规则 JSON...");
       const data = (await res.json()) as GenerateRuleResponse;
       if (!data.success) throw new Error(data.error || "生成规则失败");
       if (!data.rule) throw new Error("大模型未返回可用规则");
@@ -152,6 +161,7 @@ export default function Home() {
       setRuleText(JSON.stringify(data.rule, null, 2));
       setStructure(data.structure ?? null);
       setProgress(100);
+      setProgressMessage("规则已生成，可以在右侧确认、微调或试解析。");
       const modelText = data.llm?.model && data.llm?.baseURL ? `${data.llm.model} · ${data.llm.baseURL}` : "环境变量配置的模型";
       setStatus({
         type: data.aiFallback ? "info" : "success",
@@ -162,9 +172,11 @@ export default function Home() {
     } catch (error) {
       setStatus({ type: "error", text: error instanceof Error ? error.message : "生成规则失败" });
     } finally {
+      clearProgressTimer();
       window.setTimeout(() => {
         setWorking(null);
         setProgress(0);
+        setProgressMessage("");
       }, 500);
     }
   }
@@ -173,6 +185,8 @@ export default function Home() {
     const rule = syncRuleFromText();
     if (!rule) return;
     setWorking("save");
+    setProgress(45);
+    setProgressMessage("正在保存规则到数据库...");
     try {
       const isUpdate = Boolean(rule.id);
       const res = await fetch(isUpdate ? `/api/rules/${rule.id}` : "/api/rules", {
@@ -187,10 +201,16 @@ export default function Home() {
       setDraftRule(data.rule.config);
       setRuleText(JSON.stringify(data.rule.config, null, 2));
       setStatus({ type: "success", text: "解析规则已保存到服务器。" });
+      setProgress(100);
+      setProgressMessage("规则保存完成。");
     } catch (error) {
       setStatus({ type: "error", text: error instanceof Error ? error.message : "保存规则失败" });
     } finally {
-      setWorking(null);
+      window.setTimeout(() => {
+        setWorking(null);
+        setProgress(0);
+        setProgressMessage("");
+      }, 400);
     }
   }
 
@@ -207,13 +227,16 @@ export default function Home() {
 
     setWorking("parse");
     setProgress(8);
+    setProgressMessage("正在准备解析文件...");
     try {
       const form = new FormData();
       form.append("file", file);
       form.append("rule", JSON.stringify(rule));
-      tickProgress(40);
+      startParseProgressLoop();
       const res = await fetch("/api/parse-file", { method: "POST", body: form });
-      tickProgress(85);
+      clearProgressTimer();
+      setProgress(88);
+      setProgressMessage("解析完成，正在打开预览页...");
       const data = (await res.json()) as ParseResponse;
       if (!data.success) throw new Error(data.error || "解析失败");
       sessionStorage.setItem(
@@ -227,6 +250,7 @@ export default function Home() {
         }),
       );
       setProgress(100);
+      setProgressMessage("预览数据已准备完成。");
       setStatus({
         type: "success",
         text: `解析完成，共 ${data.metrics?.rowCount ?? data.orders?.length ?? 0} 行，用时 ${data.metrics?.elapsedMs ?? 0}ms。`,
@@ -235,15 +259,56 @@ export default function Home() {
     } catch (error) {
       setStatus({ type: "error", text: error instanceof Error ? error.message : "文件解析失败" });
     } finally {
+      clearProgressTimer();
       window.setTimeout(() => {
         setWorking(null);
         setProgress(0);
+        setProgressMessage("");
       }, 600);
     }
   }
 
-  function tickProgress(value: number) {
-    setProgress((current) => Math.max(current, value));
+  function clearProgressTimer() {
+    if (progressTimerRef.current !== null) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }
+
+  function startGenerateProgressLoop() {
+    clearProgressTimer();
+    const startedAt = Date.now();
+    progressTimerRef.current = window.setInterval(() => {
+      const elapsedMs = Date.now() - startedAt;
+      const stage =
+        elapsedMs < 1800
+          ? { ceiling: 28, step: 4, message: "正在上传文件，并读取 Sheet / 文本结构..." }
+          : elapsedMs < 4200
+            ? { ceiling: 42, step: 3, message: "正在生成文件结构摘要和 AI 提示词..." }
+            : elapsedMs < 22000
+              ? { ceiling: 76, step: 2, message: "正在等待 AI 网关返回推荐规则，通常需要 10-30 秒..." }
+              : { ceiling: 88, step: 1, message: "AI 网关响应偏慢，超过上限会自动降级为本地推荐规则..." };
+
+      setProgressMessage(stage.message);
+      setProgress((current) => (current >= stage.ceiling ? current : Math.min(stage.ceiling, current + stage.step)));
+    }, 650);
+  }
+
+  function startParseProgressLoop() {
+    clearProgressTimer();
+    const startedAt = Date.now();
+    progressTimerRef.current = window.setInterval(() => {
+      const elapsedMs = Date.now() - startedAt;
+      const stage =
+        elapsedMs < 1600
+          ? { ceiling: 35, step: 5, message: "正在上传文件并加载解析规则..." }
+          : elapsedMs < 3600
+            ? { ceiling: 68, step: 4, message: "正在执行规则引擎，抽取订单字段..." }
+            : { ceiling: 86, step: 2, message: "正在校验数据并整理预览结果..." };
+
+      setProgressMessage(stage.message);
+      setProgress((current) => (current >= stage.ceiling ? current : Math.min(stage.ceiling, current + stage.step)));
+    }, 500);
   }
 
   return (
@@ -281,6 +346,7 @@ export default function Home() {
           <div className="progress-track">
             <span style={{ width: `${progress}%` }} />
           </div>
+          {progressMessage && <p className="progress-message">{progressMessage}</p>}
         </div>
       )}
 

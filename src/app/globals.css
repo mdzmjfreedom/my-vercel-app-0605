@@ -462,6 +462,12 @@ button {
   transition: width 0.25s;
 }
 
+.progress-message {
+  margin: 8px 0 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }
@@ -687,6 +693,106 @@ button {
   margin-bottom: 0;
 }
 
+.rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 250px;
+  overflow: auto;
+  margin-bottom: 12px;
+}
+
+.rule-list.management {
+  max-height: none;
+  margin-bottom: 0;
+}
+
+.rule-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: #fff;
+  text-align: left;
+  transition: border-color 0.18s, background 0.18s, color 0.18s;
+}
+
+.rule-row:hover,
+.rule-row.active {
+  border-color: var(--primary);
+  background: var(--primary-lighter);
+  color: var(--primary);
+}
+
+.rule-row span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rule-row strong {
+  color: var(--text-main);
+  font-size: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rule-row small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.rule-editor-card {
+  margin-bottom: 0;
+}
+
+.json-editor-wrap {
+  min-width: 0;
+}
+
+.editor-toolbar {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.json-editor {
+  width: 100%;
+  min-height: 350px;
+  resize: vertical;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: #fbfcfc;
+  color: #263238;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.58;
+  outline: none;
+}
+
+.json-editor.large {
+  min-height: 610px;
+}
+
+.json-editor:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 198, 194, 0.12);
+  background: #fff;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -703,14 +809,14 @@ button {
 
 .filter-card {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 170px 170px auto;
+  grid-template-columns: minmax(320px, 1fr) minmax(430px, 520px) auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
   margin-bottom: 12px;
 }
 
 .search-input,
-.date-filter {
+.date-range-filter {
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -722,17 +828,17 @@ button {
 }
 
 .search-input:focus-within,
-.date-filter:focus-within {
+.date-range-filter:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(15, 198, 194, 0.1);
 }
 
-.search-input svg {
+.search-input svg,
+.date-filter svg {
   color: var(--text-tertiary);
 }
 
-.search-input input,
-.date-filter input {
+.search-input input {
   width: 100%;
   min-width: 0;
   border: none;
@@ -741,9 +847,49 @@ button {
   font-size: 14px;
 }
 
+.date-range-filter {
+  padding: 0 8px;
+}
+
+.date-filter {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .date-filter span {
+  flex: 0 0 auto;
+  min-width: 32px;
   color: var(--text-tertiary);
   font-size: 12px;
+}
+
+.date-filter input {
+  width: 100%;
+  min-width: 128px;
+  height: 30px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.date-filter input::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.date-range-divider {
+  width: 1px;
+  height: 18px;
+  flex: 0 0 1px;
+  background: var(--border-color);
 }
 
 .orders-card {

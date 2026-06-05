@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 
 type OrderRow = {
   id: string;
@@ -108,14 +108,29 @@ export default function OrdersPage() {
             placeholder="搜索外部编码、收件人姓名或收货门店"
           />
         </div>
-        <label className="date-filter">
-          <span>开始</span>
-          <input type="date" value={createdFrom} onChange={(event) => setCreatedFrom(event.target.value)} />
-        </label>
-        <label className="date-filter">
-          <span>结束</span>
-          <input type="date" value={createdTo} onChange={(event) => setCreatedTo(event.target.value)} />
-        </label>
+        <div className="date-range-filter" aria-label="提交时间范围">
+          <label className="date-filter">
+            <span>开始</span>
+            <input
+              type="date"
+              value={createdFrom}
+              onChange={(event) => setCreatedFrom(event.target.value)}
+              aria-label="开始日期"
+            />
+            <CalendarDays size={16} />
+          </label>
+          <span className="date-range-divider" aria-hidden="true" />
+          <label className="date-filter">
+            <span>结束</span>
+            <input
+              type="date"
+              value={createdTo}
+              onChange={(event) => setCreatedTo(event.target.value)}
+              aria-label="结束日期"
+            />
+            <CalendarDays size={16} />
+          </label>
+        </div>
         <button className="primary-button" onClick={search}>
           <Search size={16} />
           筛选

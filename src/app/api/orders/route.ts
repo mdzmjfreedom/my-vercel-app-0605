@@ -175,9 +175,9 @@ function groupImportedOrders(rows: ImportedOrderRow[]): ImportedOrderGroup[] {
     existing.hasReceiverConflict ||= getReceiverSignature(existing.items[0]) !== receiverSignature;
   });
 
-  return Array.from(groups.values()).sort(
-    (first, second) => second.lastCreatedAt.getTime() - first.lastCreatedAt.getTime(),
-  );
+  return Array.from(groups.values())
+    .map((group) => ({ ...group, items: sortImportedOrderItems(group.items) }))
+    .sort((first, second) => second.lastCreatedAt.getTime() - first.lastCreatedAt.getTime());
 }
 
 function buildSearchWhere(q: string): Prisma.OrderWhereInput[] {
@@ -206,6 +206,15 @@ async function expandMatchedRowsToFullOutboundOrders(rows: ImportedOrderRow[]): 
   [...expandedRows, ...rows].forEach((row) => byId.set(row.id, row));
 
   return Array.from(byId.values()).sort((first, second) => second.createdAt.getTime() - first.createdAt.getTime());
+}
+
+function sortImportedOrderItems(items: ImportedOrderRow[]): ImportedOrderRow[] {
+  return [...items].sort(
+    (first, second) =>
+      normalizeText(first.skuCode).localeCompare(normalizeText(second.skuCode), "zh-CN", { numeric: true }) ||
+      normalizeText(first.skuName).localeCompare(normalizeText(second.skuName), "zh-CN", { numeric: true }) ||
+      first.createdAt.getTime() - second.createdAt.getTime(),
+  );
 }
 
 function getReceiverSignature(row: Pick<ImportedOrderRow, "receiverShop" | "receiverName" | "receiverPhone" | "receiverAddress">): string {

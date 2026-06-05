@@ -1,0 +1,467 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Database,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  Plus,
+  Save,
+  Sparkles,
+  UploadCloud,
+} from "lucide-react";
+import type { FileStructure, ParsedOrder, ParseRule, ValidationIssue } from "@/lib/types";
+import { getFileKind } from "@/lib/types";
+import "./page.css";
+
+type SavedRule = {
+  id: string;
+  ruleName: string;
+  fileType: string;
+  createdAt: string;
+  updatedAt: string;
+  config: ParseRule;
+};
+
+type ParseResponse = {
+  success: boolean;
+  orders?: ParsedOrder[];
+  issues?: ValidationIssue[];
+  metrics?: { rowCount: number; elapsedMs: number };
+  error?: string;
+};
+
+type GenerateRuleResponse = {
+  success: boolean;
+  rule?: ParseRule;
+  structure?: FileStructure;
+  aiFallback?: boolean;
+  llm?: { baseURL: string; model: string };
+  error?: string;
+};
+
+export default function Home() {
+  const router = useRouter();
+  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [rules, setRules] = useState<SavedRule[]>([]);
+  const [selectedRuleId, setSelectedRuleId] = useState("");
+  const [draftRule, setDraftRule] = useState<ParseRule | null>(null);
+  const [ruleText, setRuleText] = useState("");
+  const [structure, setStructure] = useState<FileStructure | null>(null);
+  const [loadingRules, setLoadingRules] = useState(true);
+  const [working, setWorking] = useState<"generate" | "parse" | "save" | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
+
+  const fileKind = file ? getFileKind(file.name) : null;
+  const compatibleRules = useMemo(
+    () => rules.filter((rule) => !fileKind || rule.fileType === fileKind),
+    [fileKind, rules],
+  );
+  const selectedRule = compatibleRules.find((rule) => rule.id === selectedRuleId);
+  const activeRule = draftRule ?? selectedRule?.config ?? null;
+
+  useEffect(() => {
+    void loadRules();
+  }, []);
+
+  async function loadRules() {
+    setLoadingRules(true);
+    try {
+      const res = await fetch("/api/rules", { cache: "no-store" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "规则加载失败");
+      setRules(data.rules ?? []);
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: `规则列表读取失败：${error instanceof Error ? error.message : "未知错误"}`,
+      });
+    } finally {
+      setLoadingRules(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const nextFile = e.dataTransfer.files?.[0];
+    if (nextFile) chooseFile(nextFile);
+  }
+
+  function chooseFile(nextFile: File) {
+    const kind = getFileKind(nextFile.name);
+    if (!kind) {
+      setStatus({ type: "error", text: "文件格式不支持，请选择 Excel、Word 或 PDF 文件。" });
+      return;
+    }
+    setFile(nextFile);
+    setSelectedRuleId("");
+    setDraftRule(null);
+    setRuleText("");
+    setStructure(null);
+    setStatus({ type: "info", text: `已选择 ${nextFile.name}，请手动选择已有规则或生成新规则。` });
+  }
+
+  function clearFile() {
+    setFile(null);
+    setSelectedRuleId("");
+    setDraftRule(null);
+    setRuleText("");
+    setStructure(null);
+  }
+
+  function syncRuleFromText(): ParseRule | null {
+    try {
+      const parsed = JSON.parse(ruleText) as ParseRule;
+      if (!parsed.ruleName || !parsed.fileType || !parsed.mode) {
+        throw new Error("规则必须包含 ruleName、fileType、mode");
+      }
+      setDraftRule(parsed);
+      setStatus({ type: "success", text: "规则 JSON 校验通过，可保存或直接试解析。" });
+      return parsed;
+    } catch (error) {
+      setStatus({ type: "error", text: `规则 JSON 无法解析：${error instanceof Error ? error.message : "格式错误"}` });
+      return null;
+    }
+  }
+
+  async function generateRule() {
+    if (!file) {
+      setStatus({ type: "error", text: "请先上传一个样例文件。" });
+      return;
+    }
+    setWorking("generate");
+    setProgress(12);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      tickProgress(35);
+      const res = await fetch("/api/generate-rule", { method: "POST", body: form });
+      tickProgress(80);
+      const data = (await res.json()) as GenerateRuleResponse;
+      if (!data.success) throw new Error(data.error || "生成规则失败");
+      if (!data.rule) throw new Error("大模型未返回可用规则");
+      setDraftRule(data.rule);
+      setRuleText(JSON.stringify(data.rule, null, 2));
+      setStructure(data.structure ?? null);
+      setProgress(100);
+      const modelText = data.llm?.model && data.llm?.baseURL ? `${data.llm.model} · ${data.llm.baseURL}` : "环境变量配置的模型";
+      setStatus({
+        type: data.aiFallback ? "info" : "success",
+        text: data.aiFallback
+          ? `LLM 接口 ${modelText} 暂不可用，已生成本地推荐规则，请人工确认。`
+          : `LLM ${modelText} 已生成推荐规则，请确认后保存或试解析。`,
+      });
+    } catch (error) {
+      setStatus({ type: "error", text: error instanceof Error ? error.message : "生成规则失败" });
+    } finally {
+      window.setTimeout(() => {
+        setWorking(null);
+        setProgress(0);
+      }, 500);
+    }
+  }
+
+  async function saveRule() {
+    const rule = syncRuleFromText();
+    if (!rule) return;
+    setWorking("save");
+    try {
+      const isUpdate = Boolean(rule.id);
+      const res = await fetch(isUpdate ? `/api/rules/${rule.id}` : "/api/rules", {
+        method: isUpdate ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "保存失败");
+      await loadRules();
+      setSelectedRuleId(data.rule.id);
+      setDraftRule(data.rule.config);
+      setRuleText(JSON.stringify(data.rule.config, null, 2));
+      setStatus({ type: "success", text: "解析规则已保存到服务器。" });
+    } catch (error) {
+      setStatus({ type: "error", text: error instanceof Error ? error.message : "保存规则失败" });
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  async function parseFile() {
+    if (!file) {
+      setStatus({ type: "error", text: "请先上传文件。" });
+      return;
+    }
+    const rule = draftRule ? syncRuleFromText() : activeRule;
+    if (!rule) {
+      setStatus({ type: "error", text: "请先选择规则，或生成并确认一条新规则。" });
+      return;
+    }
+
+    setWorking("parse");
+    setProgress(8);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("rule", JSON.stringify(rule));
+      tickProgress(40);
+      const res = await fetch("/api/parse-file", { method: "POST", body: form });
+      tickProgress(85);
+      const data = (await res.json()) as ParseResponse;
+      if (!data.success) throw new Error(data.error || "解析失败");
+      sessionStorage.setItem(
+        "previewPayload",
+        JSON.stringify({
+          fileName: file.name,
+          ruleName: rule.ruleName,
+          orders: data.orders ?? [],
+          issues: data.issues ?? [],
+          metrics: data.metrics,
+        }),
+      );
+      setProgress(100);
+      setStatus({
+        type: "success",
+        text: `解析完成，共 ${data.metrics?.rowCount ?? data.orders?.length ?? 0} 行，用时 ${data.metrics?.elapsedMs ?? 0}ms。`,
+      });
+      window.setTimeout(() => router.push("/preview"), 300);
+    } catch (error) {
+      setStatus({ type: "error", text: error instanceof Error ? error.message : "文件解析失败" });
+    } finally {
+      window.setTimeout(() => {
+        setWorking(null);
+        setProgress(0);
+      }, 600);
+    }
+  }
+
+  function tickProgress(value: number) {
+    setProgress((current) => Math.max(current, value));
+  }
+
+  return (
+    <div className="container import-page">
+      <section className="summary-band">
+        <div>
+          <p className="eyebrow">Waybill / bulkTransshipmentOrders</p>
+          <h2>批量转运下单 · 万能导入 V2</h2>
+          <p>上传 Excel、Word 或 PDF，手动选择规则；新格式先由环境变量配置的大模型分析文件结构并生成可编辑规则，确认后再执行解析。</p>
+        </div>
+        <div className="summary-metrics" aria-label="系统能力">
+          <div>
+            <strong>Excel / Word / PDF</strong>
+            <span>文件格式</span>
+          </div>
+          <div>
+            <strong>Env Model</strong>
+            <span>LLM 生成规则</span>
+          </div>
+          <div>
+            <strong>虚拟表格</strong>
+            <span>1000+ 行预览</span>
+          </div>
+        </div>
+      </section>
+
+      {status && <div className={`notice ${status.type}`}>{status.text}</div>}
+
+      {working && (
+        <div className="progress-card">
+          <div className="progress-label">
+            <span>{working === "generate" ? "规则生成中" : working === "parse" ? "文件解析中" : "规则保存中"}</span>
+            <strong>{progress}%</strong>
+          </div>
+          <div className="progress-track">
+            <span style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div className="workflow-grid">
+        <section className="card step-card">
+          <div className="card-title">
+            <span className="step-index">1</span>
+            <div>
+              <h3>上传出库单文件</h3>
+              <p>支持拖拽上传和点击选择，不做自动规则匹配。</p>
+            </div>
+          </div>
+
+          <div
+            className={`upload-dropzone ${isDragging ? "dragging" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              id="file-upload"
+              className="file-input"
+              accept=".xlsx,.xls,.docx,.pdf"
+              onChange={(e) => {
+                const nextFile = e.target.files?.[0];
+                if (nextFile) chooseFile(nextFile);
+              }}
+            />
+            <label htmlFor="file-upload" className="upload-label">
+              <UploadCloud size={42} className="upload-icon" />
+              <strong>点击或拖拽文件到此处</strong>
+              <span>Excel .xlsx/.xls、Word .docx、PDF</span>
+            </label>
+          </div>
+
+          {file ? (
+            <div className="file-info">
+              <FileText className="file-info-icon" />
+              <div className="file-details">
+                <span className="file-name">{file.name}</span>
+                <span className="file-size">{(file.size / 1024).toFixed(1)} KB · {fileKind?.toUpperCase()}</span>
+              </div>
+              <button className="text-button danger" onClick={clearFile}>移除</button>
+            </div>
+          ) : (
+            <div className="empty-inline">
+              <FileSpreadsheet size={18} />
+              <span>请先上传一个考试附件或你自己的出库单样例。</span>
+            </div>
+          )}
+        </section>
+
+        <section className="card step-card">
+          <div className="card-title">
+            <span className="step-index">2</span>
+            <div>
+              <h3>手动选择或新建规则</h3>
+              <p>题目要求不自动匹配，上传后由用户明确选择或确认新规则。</p>
+            </div>
+          </div>
+
+          <div className="rule-list">
+            {loadingRules ? (
+              <div className="empty-inline"><Loader2 className="spin" size={18} /> 规则加载中</div>
+            ) : compatibleRules.length ? (
+              compatibleRules.map((rule) => (
+                <button
+                  key={rule.id}
+                  className={`rule-row ${selectedRuleId === rule.id && !draftRule ? "active" : ""}`}
+                  onClick={() => {
+                    setSelectedRuleId(rule.id);
+                    setDraftRule(null);
+                    setRuleText(JSON.stringify(rule.config, null, 2));
+                    setStatus({ type: "info", text: `已选择规则：${rule.ruleName}` });
+                  }}
+                >
+                  <span>
+                    <strong>{rule.ruleName}</strong>
+                    <small>{rule.fileType.toUpperCase()} · {new Date(rule.updatedAt).toLocaleString()}</small>
+                  </span>
+                  <CheckCircle2 size={18} />
+                </button>
+              ))
+            ) : (
+              <div className="empty-inline">
+                <ClipboardList size={18} />
+                <span>{fileKind ? `暂无 ${fileKind.toUpperCase()} 规则，请生成新规则。` : "上传文件后显示兼容规则。"}</span>
+              </div>
+            )}
+          </div>
+
+          <button className="outline-button" onClick={generateRule} disabled={!file || working !== null}>
+            {working === "generate" ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
+            新建规则并由 AI 生成
+          </button>
+        </section>
+      </div>
+
+      <section className="card rule-editor-card">
+        <div className="card-title">
+          <span className="step-index">3</span>
+          <div>
+            <h3>确认规则并试解析</h3>
+            <p>AI 推测字段会写在 notes 中，保存前可直接调整 JSON 并用当前文件预览。</p>
+          </div>
+        </div>
+
+        <div className="editor-grid">
+          <div className="json-editor-wrap">
+            <div className="editor-toolbar">
+              <span>规则 JSON</span>
+              <button className="text-button" onClick={() => activeRule && setRuleText(JSON.stringify(activeRule, null, 2))}>
+                恢复当前规则
+              </button>
+            </div>
+            <textarea
+              className="json-editor"
+              value={ruleText}
+              onChange={(e) => {
+                setRuleText(e.target.value);
+                setDraftRule(null);
+              }}
+              placeholder="选择已有规则，或点击“新建规则并由 AI 生成”。"
+              spellCheck={false}
+            />
+          </div>
+
+          <aside className="rule-side-panel">
+            <div className="panel-block">
+              <h4>当前文件结构</h4>
+              {structure?.sheets?.length ? (
+                <ul className="structure-list">
+                  {structure.sheets.map((sheet) => (
+                    <li key={sheet.name}>
+                      <strong>{sheet.name}</strong>
+                      <span>{sheet.rowCount} 行 · {sheet.colCount} 列</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : structure?.text ? (
+                <p className="muted">已抽取文本 {structure.text.length} 字符。</p>
+              ) : (
+                <p className="muted">生成规则后会展示样例结构。</p>
+              )}
+            </div>
+
+            <div className="panel-block">
+              <h4>确认动作</h4>
+              <div className="action-stack">
+                <button className="secondary-button" onClick={() => syncRuleFromText()} disabled={!ruleText.trim()}>
+                  <CheckCircle2 size={16} />
+                  校验 JSON
+                </button>
+                <button className="secondary-button" onClick={saveRule} disabled={!ruleText.trim() || working !== null}>
+                  {working === "save" ? <Loader2 className="spin" size={16} /> : <Save size={16} />}
+                  保存规则
+                </button>
+                <button className="primary-button" onClick={parseFile} disabled={!file || !ruleText.trim() || working !== null}>
+                  {working === "parse" ? <Loader2 className="spin" size={16} /> : <ArrowRight size={16} />}
+                  执行解析并预览
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="capability-row">
+        <div>
+          <Database size={18} />
+          <span>规则和提交后的运单会写入 Neon/Prisma 数据库。</span>
+        </div>
+        <div>
+          <Plus size={18} />
+          <span>新增格式只保存新规则，解析代码保持不变。</span>
+        </div>
+      </section>
+    </div>
+  );
+}

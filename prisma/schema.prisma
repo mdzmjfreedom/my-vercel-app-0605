@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model ParseRule {
+  id          String   @id @default(uuid())
+  ruleName    String
+  fileType    String   // "excel", "word", "pdf"
+  configJson  String   // JSON string of the rule configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id              String   @id @default(uuid())
+  externalCode    String?  // 外部编码
+  receiverShop    String?  // 收货门店
+  receiverName    String?  // 收件人姓名
+  receiverPhone   String?  // 收件人电话
+  receiverAddress String?  // 收件人地址
+  skuCode         String   // SKU 物品编码
+  skuName         String   // SKU 物品名称
+  qty             Int      // SKU 发货数量
+  skuSpec         String?  // SKU 规格型号
+  remark          String?  // 备注
+  createdAt       DateTime @default(now())
+
+  @@map("ImportedOrder")
+}
+
+model LegacyOrder {
+  id              String   @id @default(uuid())
+  externalCode    String?
+  senderName      String
+  senderPhone     String
+  senderAddress   String
+  receiverName    String
+  receiverPhone   String
+  receiverAddress String
+  weight          Float
+  count           Int
+  tempZone        String
+  remark          String?
+  createdAt       DateTime @default(now())
+
+  @@map("Order")
+}
+
+model LegacyTemplateMapping {
+  id          String   @id
+  fingerprint String   @unique
+  mapping     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@map("TemplateMapping")
+}

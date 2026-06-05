@@ -975,6 +975,11 @@ button {
   font-weight: 600;
 }
 
+.tag-soft.warning {
+  background: #fff7e6;
+  color: #ad6800;
+}
+
 .cell-stack {
   display: flex;
   flex-direction: column;
@@ -984,6 +989,22 @@ button {
 .cell-stack small {
   color: var(--text-tertiary);
   max-width: 300px;
+}
+
+.sku-summary {
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.45;
+}
+
+.sku-summary span {
+  color: var(--text-main);
+}
+
+.sku-summary small {
+  color: var(--text-tertiary);
 }
 
 .btn-icon {

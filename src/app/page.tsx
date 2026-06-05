@@ -64,15 +64,8 @@ export default function Home() {
   const fileKind = file ? getFileKind(file.name) : null;
   const visibleRules = useMemo(
     () =>
-      [...rules].sort((first, second) => {
-        const firstMatches = !fileKind || first.fileType === fileKind;
-        const secondMatches = !fileKind || second.fileType === fileKind;
-        if (firstMatches === secondMatches) {
-          return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
-        }
-        return firstMatches ? -1 : 1;
-      }),
-    [fileKind, rules],
+      [...rules].sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime()),
+    [rules],
   );
   const selectedRule = rules.find((rule) => rule.id === selectedRuleId);
   const activeRule = draftRule ?? selectedRule?.config ?? null;
@@ -232,14 +225,6 @@ export default function Home() {
       setStatus({ type: "error", text: "请先选择规则，或生成并确认一条新规则。" });
       return;
     }
-    if (fileKind && rule.fileType !== fileKind) {
-      setStatus({
-        type: "error",
-        text: `当前文件是 ${fileKind.toUpperCase()}，所选规则适用于 ${rule.fileType.toUpperCase()}。请切换为同类型文件，或为当前文件新建规则。`,
-      });
-      return;
-    }
-
     setWorking("parse");
     setProgress(8);
     setProgressMessage("正在准备解析文件...");
@@ -432,29 +417,24 @@ export default function Home() {
               <div className="empty-inline"><Loader2 className="spin" size={18} /> 规则加载中</div>
             ) : visibleRules.length ? (
               visibleRules.map((rule) => {
-                const matchesCurrentFile = !fileKind || rule.fileType === fileKind;
-
                 return (
                   <button
                     key={rule.id}
-                    className={`rule-row ${selectedRuleId === rule.id && !draftRule ? "active" : ""} ${matchesCurrentFile ? "" : "mismatch"}`}
+                    className={`rule-row ${selectedRuleId === rule.id && !draftRule ? "active" : ""}`}
                     onClick={() => {
                       setSelectedRuleId(rule.id);
                       setDraftRule(null);
                       setRuleText(JSON.stringify(rule.config, null, 2));
                       setStatus({
-                        type: matchesCurrentFile ? "info" : "error",
-                        text: matchesCurrentFile
-                          ? `已选择规则：${rule.ruleName}`
-                          : `已打开规则：${rule.ruleName}。该规则适用于 ${rule.fileType.toUpperCase()}，当前 ${fileKind?.toUpperCase()} 文件不能直接使用。`,
+                        type: "info",
+                        text: `已选择规则：${rule.ruleName}。规则来源类型为 ${rule.fileType.toUpperCase()}，可用当前文件试解析。`,
                       });
                     }}
                   >
                     <span>
                       <strong>{rule.ruleName}</strong>
                       <small>
-                        {rule.fileType.toUpperCase()} · {new Date(rule.updatedAt).toLocaleString()} ·{" "}
-                        {matchesCurrentFile ? "当前可用" : "需切换文件"}
+                        来源 {rule.fileType.toUpperCase()} · {new Date(rule.updatedAt).toLocaleString()}
                       </small>
                     </span>
                     <CheckCircle2 size={18} />

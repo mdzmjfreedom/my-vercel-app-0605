@@ -230,19 +230,6 @@
   color: var(--primary);
 }
 
-.rule-row.mismatch {
-  background: #fafbfc;
-  border-style: dashed;
-  opacity: 0.72;
-}
-
-.rule-row.mismatch:hover,
-.rule-row.mismatch.active {
-  border-color: #b8c2cc;
-  background: #f5f7f9;
-  color: var(--text-secondary);
-}
-
 .rule-row span {
   min-width: 0;
   display: flex;

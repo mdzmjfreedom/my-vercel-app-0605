@@ -3,13 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 
-type OrderRow = {
+type OrderItem = {
   id: string;
-  externalCode?: string | null;
-  receiverShop?: string | null;
-  receiverName?: string | null;
-  receiverPhone?: string | null;
-  receiverAddress?: string | null;
   skuCode: string;
   skuName: string;
   qty: number;
@@ -18,8 +13,24 @@ type OrderRow = {
   createdAt: string;
 };
 
+type OrderGroup = {
+  groupKey: string;
+  externalCode?: string | null;
+  receiverShop?: string | null;
+  receiverName?: string | null;
+  receiverPhone?: string | null;
+  receiverAddress?: string | null;
+  skuLineCount: number;
+  totalQty: number;
+  createdAt: string;
+  firstCreatedAt: string;
+  lastCreatedAt: string;
+  hasReceiverConflict: boolean;
+  items: OrderItem[];
+};
+
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orders, setOrders] = useState<OrderGroup[]>([]);
   const [query, setQuery] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
@@ -97,7 +108,7 @@ export default function OrdersPage() {
       <div className="page-heading">
         <div>
           <h2>已导入运单</h2>
-          <p>从数据库读取历史提交记录，支持按外部编码、收件人/门店和提交时间筛选。</p>
+          <p>从数据库按出库单聚合历史记录，一个外部编码可对应多条 SKU 明细。</p>
         </div>
       </div>
 
@@ -113,7 +124,7 @@ export default function OrdersPage() {
             onKeyDown={(event) => {
               if (event.key === "Enter") search();
             }}
-            placeholder="搜索外部编码、收件人姓名或收货门店"
+            placeholder="搜索外部编码、收件人、门店、电话或 SKU"
           />
         </div>
         <div className="date-range-filter" aria-label="提交时间范围">
@@ -149,7 +160,7 @@ export default function OrdersPage() {
 
       <section className="card orders-card">
         <div className="orders-toolbar">
-          <span>共 {total} 条记录</span>
+          <span>共 {total} 个出库单</span>
           <div className="pager">
             <button
               className="btn-icon"
@@ -182,11 +193,11 @@ export default function OrdersPage() {
                 <th>外部编码</th>
                 <th>收货方</th>
                 <th>联系方式</th>
-                <th>SKU编码</th>
-                <th>SKU名称</th>
-                <th>数量</th>
-                <th>规格</th>
+                <th>SKU明细</th>
+                <th>SKU行数</th>
+                <th>总数量</th>
                 <th>提交时间</th>
+                <th>状态</th>
               </tr>
             </thead>
             <tbody>
@@ -201,7 +212,7 @@ export default function OrdersPage() {
                 </tr>
               ) : orders.length ? (
                 orders.map((order) => (
-                  <tr key={order.id}>
+                  <tr key={order.groupKey}>
                     <td>{order.externalCode || "-"}</td>
                     <td>
                       {order.receiverShop ? (
@@ -216,11 +227,25 @@ export default function OrdersPage() {
                         <small>{order.receiverAddress || ""}</small>
                       </div>
                     </td>
-                    <td>{order.skuCode}</td>
-                    <td>{order.skuName}</td>
-                    <td>{order.qty}</td>
-                    <td>{order.skuSpec || "-"}</td>
-                    <td>{new Date(order.createdAt).toLocaleString()}</td>
+                    <td>
+                      <div className="sku-summary">
+                        {order.items.slice(0, 4).map((item) => (
+                          <span key={item.id}>
+                            {item.skuCode} · {item.skuName} x {item.qty}
+                            {item.skuSpec ? ` · ${item.skuSpec}` : ""}
+                          </span>
+                        ))}
+                        {order.items.length > 4 && <small>还有 {order.items.length - 4} 条 SKU 明细</small>}
+                      </div>
+                    </td>
+                    <td>{order.skuLineCount}</td>
+                    <td>{order.totalQty}</td>
+                    <td>{new Date(order.lastCreatedAt || order.createdAt).toLocaleString()}</td>
+                    <td>
+                      <span className={order.hasReceiverConflict ? "tag-soft warning" : "tag-soft"}>
+                        {order.hasReceiverConflict ? "收货冲突" : "已聚合"}
+                      </span>
+                    </td>
                   </tr>
                 ))
               ) : (

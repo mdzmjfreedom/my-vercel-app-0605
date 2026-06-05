@@ -96,23 +96,20 @@ export class ParserEngine {
 
   static async parse(file: File, rule: ParseRule): Promise<ParsedOrder[]> {
     const structure = await this.extractStructure(file);
-    if (structure.fileType !== rule.fileType) {
-      throw new Error(`规则适用于 ${rule.fileType}，当前文件是 ${structure.fileType}`);
-    }
     return this.parseStructure(structure, rule);
   }
 
   static parseStructure(structure: FileStructure, rule: ParseRule): ParsedOrder[] {
-    if (structure.fileType === "excel") {
-      const sheets = selectSheets(structure.sheets ?? [], rule);
+    if (isSheetRule(rule)) {
+      const sheets = selectSheets(structureToSheets(structure), rule);
       const parsed = sheets.flatMap((sheet) => parseSheet(sheet, rule));
       return withStableIds(parsed);
     }
 
-    const text = structure.text ?? "";
+    const text = structureToText(structure);
     const parsed =
       rule.mode === "text-regex"
-        ? parseTextRegex(text, rule)
+        ? parseTextRegex(text, rule, structure.fileType)
         : parseTextSequence(text, rule.textSequence, structure.fileType);
     return withStableIds(parsed);
   }
@@ -367,9 +364,9 @@ function parseTextSequence(text: string, config: TextSequenceConfig | undefined,
   return rows;
 }
 
-function parseTextRegex(text: string, rule: ParseRule): ParsedOrder[] {
+function parseTextRegex(text: string, rule: ParseRule, fileType: FileKind): ParsedOrder[] {
   const config = rule.textRegex;
-  if (!config?.itemLinePattern) return parseTextSequence(text, rule.textSequence, rule.fileType);
+  if (!config?.itemLinePattern) return parseTextSequence(text, rule.textSequence, fileType);
   const itemLinePattern = config.itemLinePattern;
   const blocks = config.recordSeparatorPattern
     ? text.split(new RegExp(config.recordSeparatorPattern, "m"))
@@ -393,6 +390,57 @@ function parseTextRegex(text: string, rule: ParseRule): ParsedOrder[] {
   });
 
   return rows;
+}
+
+function isSheetRule(rule: ParseRule): boolean {
+  return rule.mode === "table" || rule.mode === "matrix" || rule.mode === "grid" || rule.mode === "cards";
+}
+
+function structureToText(structure: FileStructure): string {
+  if (structure.text) return structure.text;
+  if (structure.pages?.length) return structure.pages.map((page) => page.text).join("\n");
+  return (structure.sheets ?? [])
+    .map((sheet) => {
+      const cellLines = sheet.rows
+        .flatMap((row) => row.map((cell) => normalizeText(cell)).filter(Boolean))
+        .join("\n");
+      return [`【${sheet.name}】`, flattenRows(sheet.rows), cellLines].filter(Boolean).join("\n");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function structureToSheets(structure: FileStructure): SheetSnapshot[] {
+  if (structure.sheets?.length) return structure.sheets;
+
+  const text = structureToText(structure);
+  const rows = text
+    .split(/\r?\n/)
+    .map(textLineToRow)
+    .filter((row) => row.some((cell) => normalizeText(cell)));
+
+  if (!rows.length) return [];
+
+  return [
+    {
+      name: "文本结构",
+      rows,
+      rowCount: rows.length,
+      colCount: Math.max(0, ...rows.map((row) => row.length)),
+    },
+  ];
+}
+
+function textLineToRow(line: string): string[] {
+  const normalized = normalizeCell(line);
+  if (!normalized) return [];
+  if (normalized.includes("\t")) return normalized.split("\t").map((cell) => normalizeText(cell));
+
+  const separated = normalized
+    .split(/\s{2,}|[|｜]/)
+    .map((cell) => normalizeText(cell))
+    .filter(Boolean);
+  return separated.length > 1 ? separated : [normalized];
 }
 
 function buildExcelRule(structure: FileStructure): ParseRule {

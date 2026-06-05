@@ -144,8 +144,8 @@ function parseTable(sheet: SheetSnapshot, config: TableRuleConfig): ParsedOrder[
     const row = rows[rowIndex] ?? [];
     const firstCell = normalizeText(row[0]);
     if (config.skipBlankRows !== false && row.every((cell) => !normalizeText(cell))) continue;
-    if (config.stopWhenFirstCellMatches && new RegExp(config.stopWhenFirstCellMatches).test(firstCell)) break;
-    if (config.skipWhenFirstCellMatches && new RegExp(config.skipWhenFirstCellMatches).test(firstCell)) continue;
+    if (config.stopWhenFirstCellMatches && createRuleRegex(config.stopWhenFirstCellMatches).test(firstCell)) break;
+    if (config.skipWhenFirstCellMatches && createRuleRegex(config.skipWhenFirstCellMatches).test(firstCell)) continue;
 
     const mapped = {
       ...context,
@@ -221,8 +221,8 @@ function parseGrid(sheet: SheetSnapshot, config: GridRuleConfig): ParsedOrder[] 
   const rows = sheet.rows;
   const headers = rows[config.headerRow] ?? [];
   const lastValueCol = config.valueColumnEnd ?? headers.length - 1;
-  const separator = new RegExp(config.itemSeparatorPattern ?? "[\\n；;]+");
-  const itemPattern = new RegExp(config.itemPattern ?? "^(.+?)(?:\\s*[xX×*]\\s*|[:：]\\s*|\\s+)(\\d+(?:\\.\\d+)?)$");
+  const separator = createRuleRegex(config.itemSeparatorPattern ?? "[\\n；;]+");
+  const itemPattern = createRuleRegex(config.itemPattern ?? "^(.+?)(?:\\s*[xX×*]\\s*|[:：]\\s*|\\s+)(\\d+(?:\\.\\d+)?)$");
   const orders: ParsedOrder[] = [];
 
   for (let rowIndex = config.dataStartRow; rowIndex <= (config.dataEndRow ?? rows.length - 1); rowIndex += 1) {
@@ -297,7 +297,8 @@ function parseCards(sheet: SheetSnapshot, config: CardRuleConfig): ParsedOrder[]
       text: cardText,
       cardIndex,
     });
-    const headerIndex = block.rows.findIndex((row) => row.some((cell) => new RegExp(config.itemHeaderPattern).test(cell)));
+    const itemHeaderRegex = createRuleRegex(config.itemHeaderPattern);
+    const headerIndex = block.rows.findIndex((row) => row.some((cell) => itemHeaderRegex.test(cell)));
     if (headerIndex < 0) return;
     const headers = block.rows[headerIndex] ?? [];
     let blankCount = 0;
@@ -336,7 +337,7 @@ function parseTextSequence(text: string, config: TextSequenceConfig | undefined,
     .filter(Boolean);
   const fullText = lines.join("\n");
   const itemCodePattern = config?.itemCodePattern ?? "^[A-Z0-9][A-Z0-9_-]{4,}$";
-  const codeRegex = new RegExp(itemCodePattern);
+  const codeRegex = createRuleRegex(itemCodePattern);
   const context = resolveMappings(config?.contextMappings ?? defaultTextContextMappings(), { text: fullText });
   const order: Array<"skuCode" | "skuName" | "skuSpec" | "qty" | "remark"> =
     config?.itemFieldOrder ?? ["skuCode", "skuName", "skuSpec", "remark", "qty"];
@@ -369,13 +370,13 @@ function parseTextRegex(text: string, rule: ParseRule, fileType: FileKind): Pars
   if (!config?.itemLinePattern) return parseTextSequence(text, rule.textSequence, fileType);
   const itemLinePattern = config.itemLinePattern;
   const blocks = config.recordSeparatorPattern
-    ? text.split(new RegExp(config.recordSeparatorPattern, "m"))
+    ? text.split(createRuleRegex(config.recordSeparatorPattern, "m"))
     : [text];
   const rows: ParsedOrder[] = [];
 
   blocks.forEach((block, blockIndex) => {
     const context = resolveMappings(config.contextMappings ?? defaultTextContextMappings(), { text: block });
-    const itemRegex = new RegExp(itemLinePattern, "gm");
+    const itemRegex = createRuleRegex(itemLinePattern, "gm");
     let match: RegExpExecArray | null;
     while ((match = itemRegex.exec(block))) {
       const mapped = {
@@ -451,7 +452,8 @@ function buildExcelRule(structure: FileStructure): ParseRule {
   }
 
   const cardPattern = "^(▶|>|#)?\\s*(调拨记录|配送单|记录)\\s*#?\\d+";
-  if (sheets.some((sheet) => sheet.rows.some((row) => row.some((cell) => new RegExp(cardPattern).test(cell))))) {
+  const cardRegex = createRuleRegex(cardPattern);
+  if (sheets.some((sheet) => sheet.rows.some((row) => row.some((cell) => cardRegex.test(cell))))) {
     return {
       ruleName: "AI推荐-卡片式规则",
       fileType: "excel",
@@ -791,7 +793,7 @@ function resolveSource(source: FieldSource, context: ParseContext): string | num
   if (source.kind === "sheetName") {
     const sheetName = context.sheetName ?? "";
     if (!source.pattern) return sheetName;
-    const match = sheetName.match(new RegExp(source.pattern));
+    const match = sheetName.match(createRuleRegex(source.pattern));
     return pickRegexGroup(match, source.group);
   }
   if (source.kind === "cardIndex") {
@@ -810,7 +812,7 @@ function resolveSource(source: FieldSource, context: ParseContext): string | num
   }
   if (source.kind === "regex") {
     const flags = source.flags ?? "m";
-    const match = (context.text ?? "").match(new RegExp(source.pattern, flags));
+    const match = (context.text ?? "").match(createRuleRegex(source.pattern, flags));
     return pickRegexGroup(match, source.group);
   }
   return "";
@@ -863,10 +865,10 @@ function findByLabel(rows: CellGrid, source: Extract<FieldSource, { kind: "label
 }
 
 function getInlineLabelValue(cell: string, labelPattern: string): string | null {
-  const exact = new RegExp(`^(?:${labelPattern})\\s*[:：]?\\s*$`);
+  const exact = createRuleRegex(`^(?:${labelPattern})\\s*[:：]?\\s*$`);
   if (exact.test(cell)) return "";
 
-  const inline = cell.match(new RegExp(`^(?:${labelPattern})\\s*[:：]\\s*(.+)$`));
+  const inline = cell.match(createRuleRegex(`^(?:${labelPattern})\\s*[:：]\\s*(.+)$`));
   return inline ? normalizeText(inline[1]) : null;
 }
 
@@ -876,8 +878,29 @@ function pickRegexGroup(match: RegExpMatchArray | null, group: string | number |
   return normalizeText(match[group ?? 1]);
 }
 
+function createRuleRegex(pattern: string, flags = ""): RegExp {
+  const literal = parseRulePattern(pattern);
+  const inlineFlagMatch = literal.source.match(/^\(\?([imsu]+)\)/);
+  const nextFlags = new Set([...flags, ...literal.flags].filter(Boolean));
+  let source = literal.source;
+
+  if (inlineFlagMatch) {
+    source = literal.source.slice(inlineFlagMatch[0].length);
+    inlineFlagMatch[1].split("").forEach((flag) => nextFlags.add(flag));
+  }
+
+  source = source.replace(/\(\?P<([A-Za-z][A-Za-z0-9_]*)>/g, "(?<$1>");
+  return new RegExp(source, Array.from(nextFlags).join(""));
+}
+
+function parseRulePattern(pattern: string): { source: string; flags: string } {
+  const trimmed = pattern.trim();
+  const literal = trimmed.match(/^\/([\s\S]*)\/([dgimsuvy]*)$/);
+  return literal ? { source: literal[1].replace(/\\\//g, "/"), flags: literal[2] } : { source: trimmed, flags: "" };
+}
+
 function splitCards(rows: CellGrid, pattern: string): Array<{ startRow: number; rows: CellGrid }> {
-  const regex = new RegExp(pattern);
+  const regex = createRuleRegex(pattern);
   const starts = rows.reduce<number[]>((acc, row, index) => {
     if (row.some((cell) => regex.test(normalizeText(cell)))) acc.push(index);
     return acc;

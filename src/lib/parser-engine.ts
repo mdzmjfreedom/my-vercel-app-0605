@@ -956,6 +956,7 @@ function flattenRows(rows: CellGrid): string {
 }
 
 async function extractPdfText(file: File): Promise<string> {
+  ensurePdfJsNodeGlobals();
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
     path.join(process.cwd(), "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.mjs"),
@@ -973,6 +974,203 @@ async function extractPdfText(file: File): Promise<string> {
     pages.push(text);
   }
   return pages.join("\n");
+}
+
+type PdfDomMatrixInit =
+  | number[]
+  | {
+      a?: number;
+      b?: number;
+      c?: number;
+      d?: number;
+      e?: number;
+      f?: number;
+      m11?: number;
+      m12?: number;
+      m21?: number;
+      m22?: number;
+      m41?: number;
+      m42?: number;
+    };
+
+class PdfDomMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+
+  constructor(init?: PdfDomMatrixInit) {
+    if (Array.isArray(init)) {
+      [this.a, this.b, this.c, this.d, this.e, this.f] = [
+        Number(init[0] ?? 1),
+        Number(init[1] ?? 0),
+        Number(init[2] ?? 0),
+        Number(init[3] ?? 1),
+        Number(init[4] ?? 0),
+        Number(init[5] ?? 0),
+      ];
+      return;
+    }
+
+    if (init && typeof init === "object") {
+      this.a = Number(init.a ?? init.m11 ?? 1);
+      this.b = Number(init.b ?? init.m12 ?? 0);
+      this.c = Number(init.c ?? init.m21 ?? 0);
+      this.d = Number(init.d ?? init.m22 ?? 1);
+      this.e = Number(init.e ?? init.m41 ?? 0);
+      this.f = Number(init.f ?? init.m42 ?? 0);
+    }
+  }
+
+  get m11() {
+    return this.a;
+  }
+
+  set m11(value: number) {
+    this.a = value;
+  }
+
+  get m12() {
+    return this.b;
+  }
+
+  set m12(value: number) {
+    this.b = value;
+  }
+
+  get m21() {
+    return this.c;
+  }
+
+  set m21(value: number) {
+    this.c = value;
+  }
+
+  get m22() {
+    return this.d;
+  }
+
+  set m22(value: number) {
+    this.d = value;
+  }
+
+  get m41() {
+    return this.e;
+  }
+
+  set m41(value: number) {
+    this.e = value;
+  }
+
+  get m42() {
+    return this.f;
+  }
+
+  set m42(value: number) {
+    this.f = value;
+  }
+
+  get is2D() {
+    return true;
+  }
+
+  multiplySelf(other?: PdfDomMatrixInit) {
+    const matrix = new PdfDomMatrix(other);
+    const next = multiplyAffine(this, matrix);
+    this.setFrom(next);
+    return this;
+  }
+
+  preMultiplySelf(other?: PdfDomMatrixInit) {
+    const matrix = new PdfDomMatrix(other);
+    const next = multiplyAffine(matrix, this);
+    this.setFrom(next);
+    return this;
+  }
+
+  translate(x = 0, y = 0) {
+    return new PdfDomMatrix(this.toArray()).translateSelf(x, y);
+  }
+
+  translateSelf(x = 0, y = 0) {
+    return this.multiplySelf([1, 0, 0, 1, x, y]);
+  }
+
+  scale(scaleX = 1, scaleY = scaleX) {
+    return new PdfDomMatrix(this.toArray()).scaleSelf(scaleX, scaleY);
+  }
+
+  scaleSelf(scaleX = 1, scaleY = scaleX) {
+    return this.multiplySelf([scaleX, 0, 0, scaleY, 0, 0]);
+  }
+
+  invertSelf() {
+    const determinant = this.a * this.d - this.b * this.c;
+    if (!determinant) {
+      this.a = Number.NaN;
+      this.b = Number.NaN;
+      this.c = Number.NaN;
+      this.d = Number.NaN;
+      this.e = Number.NaN;
+      this.f = Number.NaN;
+      return this;
+    }
+
+    const next = new PdfDomMatrix([
+      this.d / determinant,
+      -this.b / determinant,
+      -this.c / determinant,
+      this.a / determinant,
+      (this.c * this.f - this.d * this.e) / determinant,
+      (this.b * this.e - this.a * this.f) / determinant,
+    ]);
+    this.setFrom(next);
+    return this;
+  }
+
+  toFloat32Array() {
+    return Float32Array.from(this.toArray());
+  }
+
+  toFloat64Array() {
+    return Float64Array.from(this.toArray());
+  }
+
+  toArray() {
+    return [this.a, this.b, this.c, this.d, this.e, this.f];
+  }
+
+  private setFrom(matrix: PdfDomMatrix) {
+    this.a = matrix.a;
+    this.b = matrix.b;
+    this.c = matrix.c;
+    this.d = matrix.d;
+    this.e = matrix.e;
+    this.f = matrix.f;
+  }
+}
+
+function multiplyAffine(left: PdfDomMatrix, right: PdfDomMatrix): PdfDomMatrix {
+  return new PdfDomMatrix([
+    left.a * right.a + left.c * right.b,
+    left.b * right.a + left.d * right.b,
+    left.a * right.c + left.c * right.d,
+    left.b * right.c + left.d * right.d,
+    left.a * right.e + left.c * right.f + left.e,
+    left.b * right.e + left.d * right.f + left.f,
+  ]);
+}
+
+function ensurePdfJsNodeGlobals() {
+  const target = globalThis as unknown as {
+    DOMMatrix?: typeof PdfDomMatrix;
+    DOMMatrixReadOnly?: typeof PdfDomMatrix;
+  };
+
+  target.DOMMatrix ??= PdfDomMatrix;
+  target.DOMMatrixReadOnly ??= PdfDomMatrix;
 }
 
 export type {

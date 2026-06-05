@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 
 type OrderRow = {
   id: string;
@@ -84,6 +84,14 @@ export default function OrdersPage() {
     setReloadKey((value) => value + 1);
   }
 
+  function openDatePicker(input: HTMLInputElement) {
+    try {
+      input.showPicker?.();
+    } catch {
+      // Some browsers only allow showPicker during pointer activation; native focus still works.
+    }
+  }
+
   return (
     <div className="container orders-page">
       <div className="page-heading">
@@ -114,10 +122,11 @@ export default function OrdersPage() {
             <input
               type="date"
               value={createdFrom}
+              onClick={(event) => openDatePicker(event.currentTarget)}
+              onFocus={(event) => openDatePicker(event.currentTarget)}
               onChange={(event) => setCreatedFrom(event.target.value)}
               aria-label="开始日期"
             />
-            <CalendarDays size={16} />
           </label>
           <span className="date-range-divider" aria-hidden="true" />
           <label className="date-filter">
@@ -125,10 +134,11 @@ export default function OrdersPage() {
             <input
               type="date"
               value={createdTo}
+              onClick={(event) => openDatePicker(event.currentTarget)}
+              onFocus={(event) => openDatePicker(event.currentTarget)}
               onChange={(event) => setCreatedTo(event.target.value)}
               aria-label="结束日期"
             />
-            <CalendarDays size={16} />
           </label>
         </div>
         <button className="primary-button" onClick={search}>

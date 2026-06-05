@@ -833,8 +833,7 @@ button {
   box-shadow: 0 0 0 3px rgba(15, 198, 194, 0.1);
 }
 
-.search-input svg,
-.date-filter svg {
+.search-input svg {
   color: var(--text-tertiary);
 }
 
@@ -882,7 +881,11 @@ button {
   height: 16px;
   margin-left: 4px;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.65;
+}
+
+.date-filter input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .date-range-divider {
